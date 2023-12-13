@@ -1,40 +1,45 @@
-import psutil
-import platform
-import datetime
-import json
-import uuid
+import sqlite3
 
-def obtener_info_sistema():
-    info_sistema = {}
+class BaseDatosSQLite:
+    def __init__(self, filename):
+        self.filename = filename
+        self._conexion_db = sqlite3.connect(filename)
+        self._crear_tabla()
 
-    info_sistema['cpu'] = psutil.cpu_percent(interval=1)
+    def _crear_tabla(self):
+        cursor = self._conexion_db.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS datos_rendimiento (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cpu_percent REAL,
+                memory_percent REAL,
+                bytes_enviados INTEGER,
+                bytes_recibidos INTEGER,
+                mac_address TEXT,
+                temperature REAL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        self._conexion_db.commit()
 
-    info_sistema['memoria'] = psutil.virtual_memory().percent
+    def insertar_datos(self, datos_rendimiento):
+        cursor = self._conexion_db.cursor()
+        cursor.execute('''
+            INSERT INTO datos_rendimiento (
+                cpu_percent,
+                memory_percent,
+                bytes_enviados,
+                bytes_recibidos,
+                mac_address,
+                temperature
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        ''', (datos_rendimiento.rendimiento.cpu_percent, datos_rendimiento.rendimiento.memory_percent,
+              datos_rendimiento.rendimiento.bytes_enviados, datos_rendimiento.rendimiento.bytes_recibidos,
+              datos_rendimiento.rendimiento.mac_address, datos_rendimiento.rendimiento.temperature))
+        self._conexion_db.commit()
 
-    info_sistema['red'] = {'bytes_enviados': psutil.net_io_counters().bytes_sent,
-                           'bytes_recibidos': psutil.net_io_counters().bytes_recv}
-
-    try:
-        info_sistema['temperatura'] = psutil.sensors_temperatures()
-    except Exception as e:
-        info_sistema['temperatura'] = str(e)
-
-    info_sistema['mac'] = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) for elements in range(5, -1, -1)])
-
-    info_sistema['fecha_hora'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    return info_sistema
-
-informacion = obtener_info_sistema()
-
-def json_formato():
-
-    json_info = json.dumps(informacion, indent=4)
-
-    print(json_info)
-
-if __name__ == "__main__":
-    json_formato()
+    def cerrar_conexion(self):
+        self._conexion_db.close()
 
 
 if __name__ == "__main__":
